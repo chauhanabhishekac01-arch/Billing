@@ -112,6 +112,11 @@
     let items = [];
     document.getElementById('orderDate').valueAsDate = new Date();
 
+    const currencyFormatter = new Intl.NumberFormat('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Failed', err));
@@ -165,15 +170,15 @@
             tbody.innerHTML += `<tr>
                 <td>${index + 1}</td>
                 <td>${item.name}</td>
-                <td>₹${item.price.toFixed(2)}</td>
+                <td>₹${currencyFormatter.format(item.price)}</td>
                 <td>${item.qty}</td>
-                <td>₹${item.total.toFixed(2)}</td>
+                <td>₹${currencyFormatter.format(item.total)}</td>
                 <td><button class="delete-btn" onclick="deleteItem(${item.id})">×</button></td>
             </tr>`;
         });
 
         const delivery = parseFloat(document.getElementById('globalDelivery').value) || 0;
-        document.getElementById('grandTotalDisplay').innerText = `TOTAL: ₹${(itemSum + delivery).toFixed(2)}`;
+        document.getElementById('grandTotalDisplay').innerText = `TOTAL: ₹${currencyFormatter.format(itemSum + delivery)}`;
     }
 
     function generatePDF() {
@@ -191,23 +196,39 @@
             return;
         }
 
+        // --- GOOGLE SHEETS SAVE LOGIC ---
+        const itemsForSheet = items.map(i => `${i.name} (${i.qty}x)`).join(", ");
+        const itemSumForSheet = items.reduce((sum, i) => sum + i.total, 0);
+        const grandTotalForSheet = itemSumForSheet + deliveryVal;
+
+        fetch('https://script.google.com/macros/s/AKfycbwa1ItNiI0pxItnMhMRr6WG2vmiJWz0rLbciDkKeP-se79yueaGSC_qfPl4_kxSuEOd/exec', {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: customer,
+                date: date,
+                items: itemsForSheet,
+                delivery: deliveryVal,
+                total: grandTotalForSheet
+            })
+        });
+        // --------------------------------
+
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         
-        // Header
         doc.setFillColor(44, 62, 80); 
         doc.rect(0, 0, 210, 30, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(22);
         doc.text("Wink It Mussoorie", 15, 20);
         
-        // Metadata
         doc.setTextColor(60, 60, 60);
         doc.setFontSize(10);
         doc.text(`Customer: ${customer.toUpperCase()}`, 15, 40);
         doc.text(`DATE: ${date}`, 195, 40, { align: 'right' });
 
-        // Table Headings
         doc.setFont("helvetica", "bold");
         doc.line(15, 45, 195, 45);
         doc.text("S.No", 15, 52);
@@ -217,7 +238,6 @@
         doc.text("TOTAL", 165, 52);
         doc.line(15, 55, 195, 55);
 
-        // Body Items
         doc.setFont("helvetica", "normal");
         let y = 62;
         let itemSum = 0;
@@ -225,9 +245,9 @@
         items.forEach((item, index) => {
             doc.text(`${index + 1}`, 15, y);
             doc.text(item.name, 30, y);
-            doc.text(`${item.price.toFixed(2)}`, 100, y);
+            doc.text(`${currencyFormatter.format(item.price)}`, 100, y);
             doc.text(`${item.qty}`, 135, y);
-            doc.text(`${item.total.toFixed(2)}`, 165, y);
+            doc.text(`${currencyFormatter.format(item.total)}`, 165, y);
             
             itemSum += item.total;
             y += 5;
@@ -240,42 +260,35 @@
             if (y > 260) { doc.addPage(); y = 20; }
         });
 
-        // Totals Section
         y += 5;
         doc.line(120, y, 195, y);
         y += 10;
         doc.text("Item Subtotal:", 125, y);
-        doc.text(`${itemSum.toFixed(2)}`, 195, y, { align: 'right' });
+        doc.text(`${currencyFormatter.format(itemSum)}`, 195, y, { align: 'right' });
         
         y += 8;
         doc.text("Delivery Charges:", 125, y);
-        doc.text(`${deliveryVal.toFixed(2)}`, 195, y, { align: 'right' });
+        doc.text(`${currencyFormatter.format(deliveryVal)}`, 195, y, { align: 'right' });
         
         y += 12;
         doc.setFontSize(14);
         doc.setFont("helvetica", "bold");
-        doc.text("GRAND TOTAL (Rs.):", 125, y);
-        doc.text(`${(itemSum + deliveryVal).toFixed(2)}`, 195, y, { align: 'right' });
+        doc.text("GRAND TOTAL (Rs):", 125, y);
+        doc.text(`${currencyFormatter.format(itemSum + deliveryVal)}`, 195, y, { align: 'right' });
 
-        // PDF Footer with Hyperlinks
         const footerY = 285;
         doc.setFontSize(9);
         doc.setFont("helvetica", "normal");
-        doc.setTextColor(0, 0, 255); // Set to blue to indicate link
+        doc.setTextColor(0, 0, 255);
         doc.line(15, footerY - 5, 195, footerY - 5);
         
-        // Link 1: Phone (Tel URI)
         doc.text("Phone: 7983427187", 15, footerY);
         doc.link(15, footerY - 5, 30, 10, { url: 'tel:7983427187' });
 
-        // Link 2: Instagram (URL)
-        const instaLabel = "Instagram: @WinkItMussoorie";
-        doc.text(instaLabel, 105, footerY, { align: 'center' });
+        doc.text("Instagram: @WinkItMussoorie", 105, footerY, { align: 'center' });
         doc.link(85, footerY - 5, 40, 10, { url: 'https://www.instagram.com/WinkItMussoorie' });
 
-        // Link 3: Website (URL)
-        const webLabel = "Website: www.winkitmussoorie.com";
-        doc.text(webLabel, 195, footerY, { align: 'right' });
+        doc.text("Website: www.winkitmussoorie.com", 195, footerY, { align: 'right' });
         doc.link(160, footerY - 5, 35, 10, { url: 'http://www.winkitmussoorie.com' });
 
         doc.save(`Invoice_${customer}.pdf`);
