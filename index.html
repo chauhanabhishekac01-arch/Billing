@@ -10,7 +10,6 @@
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: #f8f9fa; padding: 10px; color: #333; margin: 0; }
         .container { max-width: 900px; margin: 10px auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
         
-        /* PWA Install Button Styles */
         #installBtn { 
             display: none; 
             width: 100%; 
@@ -32,7 +31,6 @@
         .item-entry { display: grid; grid-template-columns: 1fr; gap: 15px; margin-bottom: 25px; padding: 20px; background: #e9ecef; border-radius: 10px; }
         
         input { padding: 12px; border: 1px solid #ced4da; border-radius: 8px; font-size: 16px; width: 100%; box-sizing: border-box; outline: none; transition: border 0.3s; }
-        /* Error highlighting class */
         input.error { border: 2px solid #e74c3c !important; background-color: #fdf2f2; }
         label { font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #495057; text-transform: uppercase; }
 
@@ -50,9 +48,6 @@
         .delete-btn { background: #e74c3c; color: white; padding: 8px 12px; }
         .generate-btn { width: 100%; background: #2c3e50; color: white; padding: 18px; font-size: 18px; margin-top: 30px; }
 
-        button:hover { opacity: 0.9; }
-
-        /* Tablet/Desktop adjustments */
         @media (min-width: 768px) {
             body { padding: 40px; }
             .header-inputs { flex-direction: row; justify-content: space-between; }
@@ -105,7 +100,7 @@
     <div class="footer-container">
         <div class="footer-row">
             <label>Delivery Charges *</label>
-            <input type="number" id="globalDelivery" step="0.01" placeholder="Required (e.g. 0)" oninput="render()">
+            <input type="number" id="globalDelivery" step="0.01" placeholder="0.00" oninput="render()">
         </div>
         <div class="grand-total" id="grandTotalDisplay">TOTAL: ₹0.00</div>
     </div>
@@ -117,44 +112,35 @@
     let items = [];
     document.getElementById('orderDate').valueAsDate = new Date();
 
-    // 1. REGISTER SERVICE WORKER (For Offline Use)
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('SW Registered'))
-                .catch(err => console.log('SW Registration Failed', err));
+            navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Failed', err));
         });
     }
 
-    // 2. PWA INSTALL LOGIC
     let deferredPrompt;
-    const installBtn = document.getElementById('installBtn');
-
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        installBtn.style.display = 'block'; // Show button when installable
+        document.getElementById('installBtn').style.display = 'block';
     });
 
-    installBtn.addEventListener('click', async () => {
+    document.getElementById('installBtn').addEventListener('click', async () => {
         if (deferredPrompt) {
             deferredPrompt.prompt();
             const { outcome } = await deferredPrompt.userChoice;
-            if (outcome === 'accepted') {
-                installBtn.style.display = 'none';
-            }
+            if (outcome === 'accepted') document.getElementById('installBtn').style.display = 'none';
             deferredPrompt = null;
         }
     });
 
-    // 3. CORE INVOICE LOGIC
     function addItem() {
         const name = document.getElementById('itemName').value;
         const price = parseFloat(document.getElementById('itemPrice').value);
         const qty = parseFloat(document.getElementById('itemQty').value); 
 
         if (!name || isNaN(price) || isNaN(qty)) {
-            alert("Please fill item details before adding.");
+            alert("Please fill item details.");
             return;
         }
 
@@ -190,39 +176,21 @@
         document.getElementById('grandTotalDisplay').innerText = `TOTAL: ₹${(itemSum + delivery).toFixed(2)}`;
     }
 
-    // 4. GENERATION & VALIDATION
     function generatePDF() {
         const customer = document.getElementById('customerName').value.trim();
         const date = document.getElementById('orderDate').value;
-        const deliveryRaw = document.getElementById('globalDelivery').value;
-        const delivery = parseFloat(deliveryRaw);
+        const deliveryVal = parseFloat(document.getElementById('globalDelivery').value);
 
-        // STAGE 1: Strict Input Validation
-        let isValid = true;
-        const requiredFields = ['customerName', 'orderDate', 'globalDelivery'];
-
-        requiredFields.forEach(id => {
-            const el = document.getElementById(id);
-            // Check if empty OR if delivery is not a number
-            if (!el.value || (id === 'globalDelivery' && isNaN(delivery))) {
-                el.classList.add('error');
-                isValid = false;
-            } else {
-                el.classList.remove('error');
-            }
-        });
-
-        if (!isValid) {
-            alert("REQUIRED: Please fill Customer Name, Date, and Delivery Charges.");
+        if (!customer || !date || isNaN(deliveryVal)) {
+            alert("REQUIRED: Customer Name, Date, and Delivery Charges.");
             return;
         }
 
         if (items.length === 0) {
-            alert("Please add at least one item before generating the PDF.");
+            alert("Please add items.");
             return;
         }
 
-        // STAGE 2: PDF Generation
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         
@@ -233,37 +201,84 @@
         doc.setFontSize(22);
         doc.text("Wink It Mussoorie", 15, 20);
         
-        // Meta
+        // Metadata
         doc.setTextColor(60, 60, 60);
         doc.setFontSize(10);
-        doc.text(`DATE: ${date}`, 15, 40);
-        doc.text(`Customer: ${customer.toUpperCase()}`, 195, 40, { align: 'right' });
+        doc.text(`Customer: ${customer.toUpperCase()}`, 15, 40);
+        doc.text(`DATE: ${date}`, 195, 40, { align: 'right' });
 
+        // Table Headings
+        doc.setFont("helvetica", "bold");
         doc.line(15, 45, 195, 45);
-        let y = 60;
+        doc.text("S.No", 15, 52);
+        doc.text("DESCRIPTION", 30, 52);
+        doc.text("PRICE", 100, 52);
+        doc.text("UNITS", 135, 52);
+        doc.text("TOTAL", 165, 52);
+        doc.line(15, 55, 195, 55);
+
+        // Body Items
+        doc.setFont("helvetica", "normal");
+        let y = 62;
         let itemSum = 0;
 
-        // Table Content
         items.forEach((item, index) => {
-            doc.text(`${index + 1}. ${item.name}`, 15, y);
-            doc.text(`${item.total.toFixed(2)}`, 195, y, { align: 'right' });
+            doc.text(`${index + 1}`, 15, y);
+            doc.text(item.name, 30, y);
+            doc.text(`${item.price.toFixed(2)}`, 100, y);
+            doc.text(`${item.qty}`, 135, y);
+            doc.text(`${item.total.toFixed(2)}`, 165, y);
+            
             itemSum += item.total;
+            y += 5;
+            
+            doc.setLineDash([1, 1], 0);
+            doc.line(15, y, 195, y);
+            doc.setLineDash([], 0); 
+            
             y += 8;
-            if (y > 270) { doc.addPage(); y = 20; }
+            if (y > 260) { doc.addPage(); y = 20; }
         });
 
-        // Totals
-        y += 10;
-        doc.setDrawColor(44, 62, 80);
+        // Totals Section
+        y += 5;
         doc.line(120, y, 195, y);
         y += 10;
-        doc.text(`Delivery Charge: Rs. ${delivery.toFixed(2)}`, 195, y, { align: 'right' });
-        y += 10;
+        doc.text("Item Subtotal:", 125, y);
+        doc.text(`${itemSum.toFixed(2)}`, 195, y, { align: 'right' });
+        
+        y += 8;
+        doc.text("Delivery Charges:", 125, y);
+        doc.text(`${deliveryVal.toFixed(2)}`, 195, y, { align: 'right' });
+        
+        y += 12;
         doc.setFontSize(14);
         doc.setFont("helvetica", "bold");
-        doc.text(`GRAND TOTAL: Rs. ${(itemSum + delivery).toFixed(2)}`, 195, y, { align: 'right' });
+        doc.text("GRAND TOTAL (Rs.):", 125, y);
+        doc.text(`${(itemSum + deliveryVal).toFixed(2)}`, 195, y, { align: 'right' });
 
-        doc.save(`Invoice_${customer.replace(/\s+/g, '_')}.pdf`);
+        // PDF Footer with Hyperlinks
+        const footerY = 285;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(0, 0, 255); // Set to blue to indicate link
+        doc.line(15, footerY - 5, 195, footerY - 5);
+        
+        // Link 1: Phone (Tel URI)
+        doc.text("Phone: 7983427187", 15, footerY);
+        doc.link(15, footerY - 5, 30, 10, { url: 'tel:7983427187' });
+
+        // Link 2: Instagram (URL)
+        const instaLabel = "Instagram: @WinkItMussoorie";
+        doc.text(instaLabel, 105, footerY, { align: 'center' });
+        doc.link(85, footerY - 5, 40, 10, { url: 'https://www.instagram.com/WinkItMussoorie' });
+
+        // Link 3: Website (URL)
+        const webLabel = "Website: www.winkitmussoorie.com";
+        doc.text(webLabel, 195, footerY, { align: 'right' });
+        doc.link(160, footerY - 5, 35, 10, { url: 'http://www.winkitmussoorie.com' });
+
+        doc.save(`Invoice_${customer}.pdf`);
     }
 </script>
 
