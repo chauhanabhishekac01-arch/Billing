@@ -32,7 +32,7 @@
         
         input { padding: 12px; border: 1px solid #ced4da; border-radius: 8px; font-size: 16px; width: 100%; box-sizing: border-box; outline: none; transition: border 0.3s; }
         input.error { border: 2px solid #e74c3c !important; background-color: #fdf2f2; }
-        label { font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #495057; text-transform: uppercase; }
+        label { font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #574956; text-transform: uppercase; }
 
         .table-responsive { width: 100%; overflow-x: auto; margin-top: 10px; }
         table { width: 100%; border-collapse: collapse; min-width: 600px; }
@@ -46,7 +46,7 @@
         button { cursor: pointer; border: none; border-radius: 8px; font-weight: 600; transition: 0.3s; }
         .add-btn { background: #27ae60; color: white; padding: 14px 25px; width: 100%; }
         .delete-btn { background: #e74c3c; color: white; padding: 8px 12px; }
-        .generate-btn { width: 100%; background: #2c3e50; color: white; padding: 18px; font-size: 18px; margin-top: 30px; }
+        .generate-btn { width: 100%; background: #502c4d; color: white; padding: 18px; font-size: 18px; margin-top: 30px; }
 
         @media (min-width: 768px) {
             body { padding: 40px; }
@@ -184,10 +184,10 @@
     function generatePDF() {
         const customer = document.getElementById('customerName').value.trim();
         const date = document.getElementById('orderDate').value;
-        const deliveryVal = parseFloat(document.getElementById('globalDelivery').value);
+        const deliveryVal = parseFloat(document.getElementById('globalDelivery').value) || 0;
 
-        if (!customer || !date || isNaN(deliveryVal)) {
-            alert("REQUIRED: Customer Name, Date, and Delivery Charges.");
+        if (!customer || !date) {
+            alert("REQUIRED: Customer Name and Date.");
             return;
         }
 
@@ -213,53 +213,77 @@
                 total: grandTotalForSheet
             })
         });
-        // --------------------------------
 
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         
-        doc.setFillColor(44, 62, 80); 
-        doc.rect(0, 0, 210, 30, 'F');
+        // --- HEADER ---
+        doc.setFillColor(102, 51, 153);
+        doc.rect(0, 0, 210, 35, 'F');
+        
+        try {
+            doc.addImage("newlogo.jpg", "JPEG", 15, 5, 25, 25);
+        } catch (e) { console.warn("Logo load failed."); }
+
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(22);
-        doc.text("Wink It Mussoorie", 15, 20);
+        doc.text("Wink It Mussoorie", 45, 22);
         
         doc.setTextColor(60, 60, 60);
         doc.setFontSize(10);
-        doc.text(`Customer: ${customer.toUpperCase()}`, 15, 40);
-        doc.text(`DATE: ${date}`, 195, 40, { align: 'right' });
+        doc.text(`Customer: ${customer.toUpperCase()}`, 15, 42);
+        doc.text(`DATE: ${date}`, 195, 42, { align: 'right' });
 
         doc.setFont("helvetica", "bold");
-        doc.line(15, 45, 195, 45);
-        doc.text("S.No", 15, 52);
-        doc.text("DESCRIPTION", 30, 52);
-        doc.text("PRICE", 100, 52);
-        doc.text("UNITS", 135, 52);
-        doc.text("TOTAL", 165, 52);
-        doc.line(15, 55, 195, 55);
+        doc.line(15, 47, 195, 47);
+        doc.text("S.No", 15, 54);
+        doc.text("DESCRIPTION", 30, 54);
+        doc.text("PRICE", 100, 54);
+        doc.text("UNITS", 135, 54);
+        doc.text("TOTAL", 165, 54);
+        doc.line(15, 57, 195, 57);
 
+        // --- ITEMS WITH TEXT WRAPPING ---
         doc.setFont("helvetica", "normal");
-        let y = 62;
+        let y = 64;
         let itemSum = 0;
 
         items.forEach((item, index) => {
+            // Split the item name into multiple lines if it exceeds 65mm width
+            const splitName = doc.splitTextToSize(item.name, 65);
+            const lineCount = splitName.length;
+
+            // Print Serial, Price, Qty, and Total (usually at the top of the wrapped text row)
             doc.text(`${index + 1}`, 15, y);
-            doc.text(item.name, 30, y);
+            doc.text(splitName, 30, y); // Description (wrapped)
             doc.text(`${currencyFormatter.format(item.price)}`, 100, y);
             doc.text(`${item.qty}`, 135, y);
             doc.text(`${currencyFormatter.format(item.total)}`, 165, y);
             
             itemSum += item.total;
-            y += 5;
-            
+
+            // Dynamically calculate the next Y position based on line count
+            // Line height is roughly 5mm
+            const rowHeight = (lineCount * 5) + 3; 
+            y += rowHeight;
+
+            // Dotted separator line
             doc.setLineDash([1, 1], 0);
-            doc.line(15, y, 195, y);
+            doc.line(15, y - 2, 195, y - 2);
             doc.setLineDash([], 0); 
-            
-            y += 8;
-            if (y > 260) { doc.addPage(); y = 20; }
+
+            y += 4; // Extra padding for next row
+
+            // Page break check
+            if (y > 270) { 
+                doc.addPage(); 
+                y = 20; 
+                // Redraw table headers on new page if necessary
+            }
         });
 
+        // --- TOTALS ---
+        if (y > 240) { doc.addPage(); y = 20; } // Ensure room for totals
         y += 5;
         doc.line(120, y, 195, y);
         y += 10;
@@ -276,20 +300,48 @@
         doc.text("GRAND TOTAL (Rs):", 125, y);
         doc.text(`${currencyFormatter.format(itemSum + deliveryVal)}`, 195, y, { align: 'right' });
 
+        // --- PAYMENT QR & DOWNLOAD BUTTON ---
+        // Check if the QR section (approx 50mm height) will hit the footer (at 285mm)
+        // If y + 50 is greater than 280, we move to a new page.
+        if (y + 50 > 280) { 
+            doc.addPage(); 
+            y = 20; // Reset y to top of new page
+        }
+
+        y += 10;
+        doc.setFontSize(10);
+        doc.setTextColor(44, 62, 80);
+        doc.text("PAYMENT QR", 15, y);
+
+        try {
+            doc.addImage("WinkitMussoorieqr.jpeg", "JPEG", 15, y + 5, 35, 35);
+            
+            const btnX = 55, btnY = y + 15, btnWidth = 45, btnHeight = 10;
+            doc.setFillColor(52, 152, 219);
+            doc.rect(btnX, btnY, btnWidth, btnHeight, 'F');
+            
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+            doc.text("DOWNLOAD QR", btnX + (btnWidth / 2), btnY + 6.5, { align: 'center' });
+            
+            const qrUrl = window.location.href.replace(/[^/]*$/, '') + 'WinkitMussoorieqr.jpeg';
+            doc.link(btnX, btnY, btnWidth, btnHeight, { url: qrUrl });
+            
+            // Advance Y so footer logic doesn't overlap if items were long
+            y += 45; 
+        } catch (e) { 
+            console.warn("QR image not found."); 
+        }
+
+        // --- FOOTER (Stays at the bottom of the current page) ---
         const footerY = 285;
         doc.setFontSize(9);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(0, 0, 255);
         doc.line(15, footerY - 5, 195, footerY - 5);
-        
         doc.text("Phone: 7983427187", 15, footerY);
-        doc.link(15, footerY - 5, 30, 10, { url: 'tel:7983427187' });
-
         doc.text("Instagram: @WinkItMussoorie", 105, footerY, { align: 'center' });
-        doc.link(85, footerY - 5, 40, 10, { url: 'https://www.instagram.com/WinkItMussoorie' });
-
         doc.text("Website: www.winkitmussoorie.com", 195, footerY, { align: 'right' });
-        doc.link(160, footerY - 5, 35, 10, { url: 'http://www.winkitmussoorie.com' });
 
         doc.save(`Invoice_${customer}.pdf`);
     }
