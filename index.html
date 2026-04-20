@@ -301,11 +301,9 @@
         doc.text(`${currencyFormatter.format(itemSum + deliveryVal)}`, 195, y, { align: 'right' });
 
         // --- PAYMENT QR & DOWNLOAD BUTTON ---
-        // Check if the QR section (approx 50mm height) will hit the footer (at 285mm)
-        // If y + 50 is greater than 280, we move to a new page.
-        if (y + 50 > 280) { 
+        if (y + 50 > 270) { // Adjusted to make room for review button
             doc.addPage(); 
-            y = 20; // Reset y to top of new page
+            y = 20; 
         }
 
         y += 10;
@@ -327,13 +325,29 @@
             const qrUrl = window.location.href.replace(/[^/]*$/, '') + 'WinkitMussoorieqr.jpeg';
             doc.link(btnX, btnY, btnWidth, btnHeight, { url: qrUrl });
             
-            // Advance Y so footer logic doesn't overlap if items were long
             y += 45; 
         } catch (e) { 
             console.warn("QR image not found."); 
         }
 
-        // --- FOOTER (Stays at the bottom of the current page) ---
+        // --- NEW REVIEW BUTTON (Placed above Footer) ---
+        const reviewBtnWidth = 50;
+        const reviewBtnHeight = 10;
+        const reviewBtnX = 15; // Left aligned
+        const reviewBtnY = 270; // Positioned above the footer line
+
+        doc.setFillColor(39, 174, 96); // Green color
+        doc.rect(reviewBtnX, reviewBtnY, reviewBtnWidth, reviewBtnHeight, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("+ Add your review", reviewBtnX + (reviewBtnWidth / 2), reviewBtnY + 6.5, { align: 'center' });
+        
+        // Make the button clickable
+        doc.link(reviewBtnX, reviewBtnY, reviewBtnWidth, reviewBtnHeight, { url: "https://g.page/r/CQbgY_WJ_39aEBE/review" });
+
+        // --- FOOTER ---
         const footerY = 285;
         doc.setFontSize(9);
         doc.setFont("helvetica", "normal");
