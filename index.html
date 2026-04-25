@@ -181,34 +181,22 @@
         document.getElementById('grandTotalDisplay').innerText = `TOTAL: ₹${currencyFormatter.format(itemSum + delivery)}`;
     }
 
-    // Function to convert a URL to Base64
-    const getBase64FromUrl = async (url) => {
-      const data = await fetch(url);
-      const blob = await data.blob();
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(blob); 
-        reader.onloadend = () => {
-          resolve(reader.result);
-        };
-      });
-    };
-
-    async function generatePDF() {
+    function generatePDF() {
         const customer = document.getElementById('customerName').value.trim();
         const date = document.getElementById('orderDate').value;
-        const deliveryInput = document.getElementById('globalDelivery').value; // Get raw value
+        const deliveryInput = document.getElementById('globalDelivery').value;
         const deliveryVal = parseFloat(document.getElementById('globalDelivery').value) || 0;
+        
 
         if (!customer || !date) {
             alert("REQUIRED: Customer Name and Date.");
             return;
         }
         if (deliveryInput === "") {
-        alert("REQUIRED: Please enter Delivery Charges (Enter 0 if none).");
+        alert("Please enter Delivery Charges.");
         document.getElementById('globalDelivery').focus();
         return;
-        }   
+        } 
 
         if (items.length === 0) {
             alert("Please add items.");
@@ -219,6 +207,7 @@
         const itemsForSheet = items.map(i => `${i.name} (${i.qty}x)`).join(", ");
         const itemSumForSheet = items.reduce((sum, i) => sum + i.total, 0);
         const grandTotalForSheet = itemSumForSheet + deliveryVal;
+        
 
         fetch('https://script.google.com/macros/s/AKfycbwa1ItNiI0pxItnMhMRr6WG2vmiJWz0rLbciDkKeP-se79yueaGSC_qfPl4_kxSuEOd/exec', {
             method: 'POST',
@@ -268,33 +257,41 @@
         let itemSum = 0;
 
         items.forEach((item, index) => {
+            // Split the item name into multiple lines if it exceeds 65mm width
             const splitName = doc.splitTextToSize(item.name, 65);
             const lineCount = splitName.length;
 
+            // Print Serial, Price, Qty, and Total (usually at the top of the wrapped text row)
             doc.text(`${index + 1}`, 15, y);
-            doc.text(splitName, 30, y);
+            doc.text(splitName, 30, y); // Description (wrapped)
             doc.text(`${currencyFormatter.format(item.price)}`, 100, y);
             doc.text(`${item.qty}`, 135, y);
             doc.text(`${currencyFormatter.format(item.total)}`, 165, y);
             
             itemSum += item.total;
+
+            // Dynamically calculate the next Y position based on line count
+            // Line height is roughly 5mm
             const rowHeight = (lineCount * 5) + 3; 
             y += rowHeight;
 
+            // Dotted separator line
             doc.setLineDash([1, 1], 0);
             doc.line(15, y - 2, 195, y - 2);
             doc.setLineDash([], 0); 
 
-            y += 4;
+            y += 4; // Extra padding for next row
 
+            // Page break check
             if (y > 270) { 
                 doc.addPage(); 
                 y = 20; 
+                // Redraw table headers on new page if necessary
             }
         });
 
         // --- TOTALS ---
-        if (y > 240) { doc.addPage(); y = 20; }
+        if (y > 240) { doc.addPage(); y = 20; } // Ensure room for totals
         y += 5;
         doc.line(120, y, 195, y);
         y += 10;
@@ -312,7 +309,7 @@
         doc.text(`${currencyFormatter.format(itemSum + deliveryVal)}`, 195, y, { align: 'right' });
 
         // --- PAYMENT QR & DOWNLOAD BUTTON ---
-        if (y + 50 > 270) { 
+        if (y + 50 > 270) { // Adjusted to make room for review button
             doc.addPage(); 
             y = 20; 
         }
@@ -322,12 +319,8 @@
         doc.setTextColor(44, 62, 80);
         doc.text("PAYMENT QR", 15, y);
 
-        // Implementation of requested Base64 logic
-        const imageUrl = "https://drive.google.com/uc?export=view&id=1qlgmZlnPJZnVM1ahpdfKAIy7Mba9k-ev";
-
         try {
-            const base64Img = await getBase64FromUrl(imageUrl);
-            doc.addImage(base64Img, "JPEG", 15, y + 5, 35, 35);
+            doc.addImage("WinkitMussoorieqr.jpeg", "JPEG", 15, y + 5, 35, 35);
             
             const btnX = 55, btnY = y + 15, btnWidth = 45, btnHeight = 10;
             doc.setFillColor(52, 152, 219);
@@ -342,22 +335,24 @@
             
             y += 45; 
         } catch (e) { 
-            console.warn("QR image processing failed.", e); 
+            console.warn("QR image not found."); 
         }
 
-        // --- NEW REVIEW BUTTON ---
+        // --- NEW REVIEW BUTTON (Placed above Footer) ---
         const reviewBtnWidth = 50;
         const reviewBtnHeight = 10;
-        const reviewBtnX = 15; 
-        const reviewBtnY = 270; 
+        const reviewBtnX = 15; // Left aligned
+        const reviewBtnY = 270; // Positioned above the footer line
 
-        doc.setFillColor(39, 174, 96);
+        doc.setFillColor(39, 174, 96); // Green color
         doc.rect(reviewBtnX, reviewBtnY, reviewBtnWidth, reviewBtnHeight, 'F');
         
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
         doc.text("+ Add your review", reviewBtnX + (reviewBtnWidth / 2), reviewBtnY + 6.5, { align: 'center' });
+        
+        // Make the button clickable
         doc.link(reviewBtnX, reviewBtnY, reviewBtnWidth, reviewBtnHeight, { url: "https://g.page/r/CQbgY_WJ_39aEBE/review" });
 
         // --- FOOTER ---
