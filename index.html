@@ -246,7 +246,7 @@
         doc.text("Wink It Mussoorie", 45, 22);
         
         doc.setTextColor(60, 60, 60);
-        doc.setFontSize(10);
+        doc.setFontSize(14);
         doc.text(`Customer: ${customer.toUpperCase()}`, 15, 42);
         doc.text(`DATE: ${date}`, 195, 42, { align: 'right' });
 
@@ -306,7 +306,7 @@
         doc.text(`${currencyFormatter.format(deliveryVal)}`, 195, y, { align: 'right' });
         
         y += 12;
-        doc.setFontSize(14);
+        doc.setFontSize(18);
         doc.setFont("helvetica", "bold");
         doc.text("GRAND TOTAL (Rs):", 125, y);
         doc.text(`${currencyFormatter.format(itemSum + deliveryVal + bagCharge)}`, 195, y, { align: 'right' });
@@ -317,7 +317,7 @@
         }
 
         y += 10;
-        doc.setFontSize(10);
+        doc.setFontSize(14);
         doc.setTextColor(44, 62, 80);
         doc.text("PAYMENT QR", 15, y);
 
@@ -349,13 +349,13 @@
         doc.rect(reviewBtnX, reviewBtnY, reviewBtnWidth, reviewBtnHeight, 'F');
         
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(10);
+        doc.setFontSize(14);
         doc.setFont("helvetica", "bold");
         doc.text("+ Add your review", reviewBtnX + (reviewBtnWidth / 2), reviewBtnY + 6.5, { align: 'center' });
         doc.link(reviewBtnX, reviewBtnY, reviewBtnWidth, reviewBtnHeight, { url: "https://g.page/r/CQbgY_WJ_39aEBE/review" });
 
         const footerY = 285;
-        doc.setFontSize(9);
+        doc.setFontSize(13);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(0, 0, 255);
         doc.line(15, footerY - 5, 195, footerY - 5);
